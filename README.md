@@ -32,17 +32,79 @@ Then it should work again
 
 ## Example
 
-see example folder
+See [example folder](./example)
 
 ## Thanks:
 Partly based on [Amazon Alexa Remote Control](http://blog.loetzimmer.de/2017/10/amazon-alexa-hort-auf-die-shell-echo.html) (PLAIN shell) and [alexa-remote-control](https://github.com/thorsten-gehrig/alexa-remote-control) and [OpenHab-Addon](https://github.com/openhab/openhab2-addons/blob/f54c9b85016758ff6d271b62d255bbe41a027928/addons/binding/org.openhab.binding.amazonechocontrol)
 Thank you for that work.
 
 ## Known issues/Todos
-* getNotification works, changeNotification not ... maybe change is DELETE +Create :-) (+ source for createNotification: https://github.com/noelportugal/alexa-reminders/blob/master/alexa-reminders.js#L75, and Delete/create: https://github.com/openhab/openhab2-addons/blob/f54c9b85016758ff6d271b62d255bbe41a027928/addons/binding/org.openhab.binding.amazonechocontrol/src/main/java/org/openhab/binding/amazonechocontrol/internal/Connection.java#L829)
 * docu docu docu (sorry ... will come)
 
 ## Changelog:
+### __WORK IN PROGRESS__
+* (GermanBluefox) Migrated the code to TypeScript; the package now ships the compiled code and type definitions from `build/`
+* (GermanBluefox) Node.js 22.19 or newer is required
+* (GermanBluefox) Replaced the `uuid` dependency with `crypto.randomUUID()`
+* (GermanBluefox) Fixed: changing the time of an alarm or switching it on no longer removes its recurrence (ioBroker.alexa2#1006)
+* (GermanBluefox) Fixed: HTTP/2 push messages that are split across several data chunks (or several messages in one chunk) are processed correctly now (#311); unparsable push messages are reported as `ws-unknown-message`
+* (GermanBluefox) Fixed: requests to the notifications API use a browser user agent, because Amazon answers requests with the app user agent with "400 ThrottlingException"
+* (GermanBluefox) Added event `ws-dnd-state-change` for "do not disturb" changes
+* (GermanBluefox) `getAuthenticationDetails()` is available again for compatibility, but always returns null (Amazon removed the API)
+* (GermanBluefox) Fixed edge cases: `sendMultiSequenceCommand` and `deleteConversation` with callback in an earlier parameter, `setReminder` with an unknown device, `httpsGetAuthApi` without endpoints
+
+### 8.1.1 (2026-08-15)
+* (GiacomoCa) Alexa-Cookie fixes for 2FA and redirects during Logins
+
+### 8.1.0 (2026-07-06)
+* (@hive) Added NotifyNowPlayingUpdated event
+
+### 8.0.6 (2026-07-06)
+* (@Apollon77) Fix Proxy URL when no static port is provided
+
+### 8.0.5 (2026-07-05)
+* (@fkhr79, @blabond) Fix Amazon login proxy auth flow
+
+### 8.0.4 (2025-11-06)
+* (@Apollon77) Adjusts Authentication check to recent Amazon changes
+
+### 8.0.2 (2025-07-14)
+* (Apollon77) Fix List updates in some cases. Disable removing details for now
+
+### 8.0.1 (2025-07-14)
+* (Apollon77) Fix List updates in some cases. Disable removing details for now
+
+### 8.0.0 (2025-07-13)
+* IMPORTANT: This version updated "list" and "Smarthome" APIs to the latest Amazon changes. SOme of these are breaking! Please see changelog below for details!
+* (Apollon77) Added new methods as "V2" to represent the new Amazon API. The delivered data have a different structure and some values are not available anymore.
+  * getListsV2
+  * getListV2
+  * getListItemsV2
+  * getSmarthomeDevicesV2
+* (Apollon77) The following methods got deprecated and try to deliver a comparable response as before by internally using the new APIs. This mapping is done on best effort and might not be 100%!
+  * getLists
+  * getList
+  * getListItems
+  * getSmarthomeDevices
+* (Apollon77) deleteListItem got a new options parameter added because the version of the list to delete is required now. An Error is returned if the version is not provided.
+* (Apollon77) The following methods were updated to use the new APIs in the background, so no V2 method was added:
+  * addListItem
+  * updateListItem
+* (Apollon77) The following former deprecated methods were removed 
+  * getHistory
+  * getActivities
+
+### 7.0.5 (2024-10-20)
+* (danielbrunt57) Adds additional Amazon domains for HTTP/2 push connections
+* (beothorn) Fixes Typing information for "names" property
+
+### 7.0.4 (2024-04-16)
+* (Apollon77) Adjust Activity Record query to Amazon changes
+* (NebzHB) fix missing amazonPage reference instead of amazon.de
+
+### 7.0.3 (2024-01-25)
+* (Apollon77) Adjust Activity Record query to newest Amazon changes
+
 ### 7.0.2 (2023-11-25)
 * (Apollon77) Adjust some texts
 
@@ -133,7 +195,7 @@ Thank you for that work.
 * (Apollon77) Enhance SequenceCommands:
   * "deviceStop" can also be called with an array of devices
   * add "deviceStopAll" to stop all devices
-  * add "deviceDoNotDisturb" with allowed values as follows: boolean true/false to enable/disable or a number to set a enable-duration in seconds (up to 43.200 seconds = 12h) or use "HH:MM" as string to define an hour and minute till when it is set to not disturb
+  * add "deviceDoNotDisturb" with allowed values as follows: boolean true/false to enable/disable or a number to set an enable-duration in seconds (up to 43.200 seconds = 12h) or use "HH:MM" as string to define an hour and minute till when it is set to not disturb
   * add "deviceDoNotDisturbAll" to set Do not disturb for all devices, allowed value is the same as deviceDoNotDisturb
   * add "fireTVTurnOn" to turn FireTV on (value ignored)
   * add "fireTVTurnOff" to turn FireTV off (value ignored)
@@ -185,8 +247,8 @@ Thank you for that work.
 * (Apollon77) Add convertNotificationToV2() to convert a notification object from old/queried format into one that can be used to set with new/V2 API (very pragmatic for now)
 
 ### 5.3.0 (2022-07-09)
-* (Apollon77) Adjust Alarm methods to use the new API from Amazon. Also createNotification() and parseValue4Notification() now returns the new format for Alarms
-* (Apollon77) Enhance createNotification() to also support adding reccurence information 
+* (Apollon77) Adjust Alarm methods to use the new API from Amazon. Also, createNotification() and parseValue4Notification() now returns the new format for Alarms
+* (Apollon77) Enhance createNotification() to also support adding recurrence information 
 * (Apollon77) Notification objects will also have a delete method now
 * (Apollon77) Notifications can be cancelled now
 * (Apollon77) Adjust logging when no callback is provided again, now logs also the body
@@ -208,8 +270,8 @@ Thank you for that work.
 * (Apollon77) Query API endpoints (including new method getEndpoints()) from Amazon on start and use this API endpoint for the calls
 * (Apollon77) Enhance getDevicePreferences() to request preferences for one device
 * (Apollon77) Add setDevicePreferences() to set the device preferences for a device
-* (Apollon77) Add getDeviceWifiDetails() to get the Wifi definitions (including SSID and MAC) for a device
-* (Apollon77) Load Device Preferences on startup and make accessible via device.preferences on the device objects
+* (Apollon77) Add getDeviceWifiDetails() to get the Wi-Fi definitions (including SSID and MAC) for a device
+* (Apollon77) Load Device Preferences on startup and make accessible via `device.preferences` on the device objects
 * (Apollon77) Add methods getDevicePreferences() and setDevicePreferences() to the alexa class and to the device objects
 * (Apollon77) Add new Media Message "jump" (in sendMessage() method) with a mediaId as value (can be used to jump to another queue item)
 * (Apollon77) Add getRoutineSoundList() to query available sound IDs for a routine
@@ -287,7 +349,7 @@ Thank you for that work.
 ### 3.7.0 (2021-02-03)
 * (Apollon77) Implement new method to get History/Activities
   * getActivities Method is still there and still triggers the Amazon route as till now. INo idea ng it still works for some users. I declared it as deprecated now
-  * add new method "getCustomerHistoryRecords" which uses another endpoint on Amazon side and delivers different data. The return is returned relative compatible to getActivities, so should be a drop in replacement - beside the fact that some fileds can not be provided any longer and will be simply empty! (e.g. activityStatus, deviceAccountId ...) Also in the amazon data some fields are no longer existing (e.g. domainAttributes ...)
+  * add new method "getCustomerHistoryRecords" which uses another endpoint on Amazon side and delivers different data. The return is returned relative compatible to getActivities, so should be a drop in replacement - beside the fact that some fields can not be provided any longer and will be simply empty! (e.g. activityStatus, deviceAccountId ...) Also in the amazon data some fields are no longer existing (e.g. domainAttributes ...)
   * the event "ws-device-activity" is migrated to use the new getCustomerHistoryRecords endpoint, and so returns compatible, but not 100% the same data
 * (Apollon77) Make sure to not hammer requests to Amazon in case the activity request returns an error and the received PUSH_ACTIVITY entry was not found
 * (Apollon77) Detect and handle 50x error cases and handle them as if no content was returned
@@ -351,7 +413,7 @@ Thank you for that work.
 * (hive) add new command curatedtts with allowed values ["goodbye", "confirmations", "goodmorning", "compliments", "birthday", "goodnight", "iamhome"] to play random curated sentences
 
 ### 3.1.0 (2019-12-30)
-* (Apollon77) remove device._orig because really big objects happened and got exceptions on deep copy using JSION.stringify
+* (Apollon77) remove `device._orig` because really big objects happened and got exceptions on deep copy using JSON.stringify
 
 ### 3.0.3 (2019-12-28)
 * (Apollon77) update cookie lib
@@ -365,7 +427,7 @@ Thank you for that work.
 ### 3.0.0 (2019-12-24)
 * (Apollon77) dependency updates
 * (Zefau) add functionality for handling of lists
-* nodejs 8.x is minimum now!
+* (Apollon77) Node.js 8.x is minimum now!
 
 ### 2.5.5 (2019-08-09)
 * (Apollon77) user different mqtt regex to hopefully support other countries better
@@ -377,7 +439,7 @@ Thank you for that work.
 * (Apollon77) also allow Reminders in Future >+1 day
 
 ### 2.5.0/1 (2019-07-21)
-* (Apollon77) enhance announce/ssml to allow send to multiple devices using one command
+* (Apollon77) enhance announce/ssml to allow to send to multiple devices using one command
 
 ### 2.4.0 (2019-07-21)
 * (Apollon77) Finalize methods and logix to send and read and delete messages and what's needed for this
@@ -422,7 +484,7 @@ Thank you for that work.
 
 ### 1.0.3 (2018-11-17)
 * (Apollon77) upgrade amazon-cookie lib
-* (Apollon77) better handle ws errors and upgrade ws version to still support nodejs 6
+* (Apollon77) better handle ws errors and upgrade ws version to still support Node.js 6
 
 ### 1.0.2 (2018-11-17)
 * (Apollon77) upgrade amazon-cookie lib
@@ -435,7 +497,7 @@ Thank you for that work.
 * (Apollon77) polishing and finalization and make it 1.0.0
 
 ### 0.6.1 (2018-08-28)
-* (Apollon77) rework scenes and add option  to send Parallel or Sequencial commands
+* (Apollon77) rework scenes and add option  to send Parallel or Sequential commands
 * (Apollon77) enhance methods for smart home device and group handling
 
 ### 0.6.0 (2018-08-24)
