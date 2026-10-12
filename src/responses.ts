@@ -463,6 +463,74 @@ export interface RoutineSkillCatalogResponse {
     };
 }
 
+// ---------- voice history ----------
+
+/** Part of a voice history record (what was said or answered) */
+export interface VoiceHistoryRecordItem {
+    recordItemKey: string;
+    /** e.g. CUSTOMER_TRANSCRIPT, ASR_REPLACEMENT_TEXT, ALEXA_RESPONSE, TTS_REPLACEMENT_TEXT */
+    recordItemType: string;
+    utteranceId: string;
+    timestamp: number;
+    transcriptText: string;
+    agentVisualName: string;
+    personsInfo: unknown[];
+}
+
+/** Voice history record as delivered by Amazon (`data` of `CustomerHistoryEntry`) */
+export interface CustomerHistoryRecord {
+    /** "<customer id>#<timestamp>#<device type>#<serial number>" */
+    recordKey: string;
+    /** e.g. VOICE_HISTORY */
+    recordType: string;
+    timestamp: number;
+    customerId: string;
+    device: { deviceName: string; deviceEntityId: unknown };
+    isBinaryFeedbackProvided: boolean;
+    isFeedbackPositive: boolean;
+    /** e.g. GENERAL, WAKE_WORD_ONLY */
+    utteranceType: string;
+    /** e.g. Global */
+    domain: string;
+    /** e.g. NextIntent */
+    intent: string;
+    skillName: string;
+    voiceHistoryRecordItems: VoiceHistoryRecordItem[];
+    personsInfo: unknown[];
+    cardResponse: unknown;
+}
+
+/** Response of the voice history API (customer-history-records-v2) */
+export interface CustomerHistoryRecordsResponse {
+    customerHistoryRecords: CustomerHistoryRecord[];
+    encodedRequestToken: unknown;
+    noDataFoundWithinTimeLimit: boolean;
+    lastRecordTimestamp: unknown;
+    voiceProfileAssociatedWithPerson: boolean;
+}
+
+/** Entry of the voice history as converted by `getCustomerHistoryRecords()` */
+export interface CustomerHistoryEntry {
+    /** The original record */
+    data: CustomerHistoryRecord;
+    /** Record items by type (e.g. CUSTOMER_TRANSCRIPT) */
+    conversionDetails?: Record<string, VoiceHistoryRecordItem[]>;
+    deviceSerialNumber: string;
+    deviceType: string | null;
+    /** Name of the device */
+    name: string;
+    creationTimestamp: number | null;
+    /** What was said (without wake word) */
+    description: { summary: string };
+    /** What Alexa answered */
+    alexaResponse: string;
+}
+
+/** Data of the `ws-device-activity` event */
+export interface DeviceActivityEvent extends CustomerHistoryEntry {
+    destinationUserId?: string;
+}
+
 // ---------- lists (V2 API) ----------
 
 /** List as returned by the V2 lists API */
@@ -720,6 +788,9 @@ export interface DndStateChangeEvent {
 
 /** Data of the `ws-now-playing-updated` event */
 export interface NowPlayingUpdatedEvent {
+    /** Device, determined via the PUSH_AUDIO_PLAYER_STATE message before (null if unknown) */
+    deviceSerialNumber: string | null;
+    deviceType: string | null;
     customerId: string | null;
     taskSessionId: string | null;
     cause: string | null;

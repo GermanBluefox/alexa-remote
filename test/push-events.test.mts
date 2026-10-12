@@ -65,6 +65,9 @@ describe('push events', () => {
         });
         assert.deepEqual(events, [
             {
+                // no audio player message before: the device is unknown
+                deviceSerialNumber: null,
+                deviceType: null,
                 customerId: 'C1',
                 taskSessionId: 'TS1',
                 cause: 'PLAYBACK_STARTED',
@@ -73,6 +76,40 @@ describe('push events', () => {
                 nowPlayingData,
             },
         ]);
+    });
+
+    it('finds the device of now playing updates via the audio player state', () => {
+        const events = record('ws-now-playing-updated');
+        const audio = (serial: string, type: string, mediaReferenceId: string): void =>
+            push('PUSH_AUDIO_PLAYER_STATE', {
+                dopplerId: { deviceSerialNumber: serial, deviceType: type },
+                audioPlayerState: 'PLAYING',
+                mediaReferenceId,
+            });
+        const nowPlaying = (session: string, mediaId: string, playerState: string): void =>
+            push('NotifyNowPlayingUpdated', {
+                customerId: 'C1',
+                update: { taskSessionId: session, update: { cause: 'X', nowPlayingData: { mediaId, playerState } } },
+            });
+
+        audio('S1', 'T1', 'EMP_ALEXA-1234:spotify:track:AAA');
+        audio('S2', 'T2', 'EMP_ALEXA-5678:spotify:track:BBB');
+        nowPlaying('SESSION-1', 'spotify:track:AAA', 'PLAYING');
+        nowPlaying('SESSION-2', 'spotify:track:BBB', 'PLAYING');
+        // later updates of the session are assigned via the session, also with another media id
+        nowPlaying('SESSION-1', 'spotify:track:CCC', 'PAUSED');
+        // unknown media and session
+        nowPlaying('SESSION-3', 'spotify:track:DDD', 'PLAYING');
+
+        assert.deepEqual(
+            events.map(e => [e.deviceSerialNumber, e.deviceType, e.playerState]),
+            [
+                ['S1', 'T1', 'PLAYING'],
+                ['S2', 'T2', 'PLAYING'],
+                ['S1', 'T1', 'PAUSED'],
+                [null, null, 'PLAYING'],
+            ],
+        );
     });
 
     it('detects activities from volume and equalizer changes shortly after each other', () => {

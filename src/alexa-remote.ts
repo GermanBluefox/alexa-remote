@@ -20,6 +20,7 @@ import type {
     BluetoothResponse,
     CommsAccount,
     CommsIdentity,
+    CustomerHistoryEntry,
     Contact,
     DefaultNotificationSoundResponse,
     DeviceNotificationState,
@@ -282,6 +283,10 @@ class AlexaRemote extends EventEmitter {
     activityCsrfTokenExpiry: number | null;
     /** Page the voice history CSRF token was read from (sent as referer) */
     activityCsrfTokenReferer: string | null;
+    /** Last media (from PUSH_AUDIO_PLAYER_STATE) per device, used to find the device of NotifyNowPlayingUpdated */
+    lastAudioPlayerMedia: Record<string, { mediaReferenceId: string; deviceType: string; ts: number }>;
+    /** Device per playback session (taskSessionId of NotifyNowPlayingUpdated) */
+    nowPlayingSessions: Record<string, { deviceSerialNumber: string; deviceType: string }>;
     /** Last volume per device from push messages, used to detect activities */
     lastVolumes: Record<string, { volumeSetting: number; isMuted: boolean; updated: number }>;
     /** Last equalizer settings per device from push messages, used to detect activities */
@@ -336,6 +341,8 @@ class AlexaRemote extends EventEmitter {
         this.activityCsrfTokenExpiry = null;
         this.activityCsrfTokenReferer = null;
 
+        this.lastAudioPlayerMedia = {};
+        this.nowPlayingSessions = {};
         this.lastVolumes = {};
         this.lastEqualizer = {};
         this.lastPushedActivity = {};
@@ -723,6 +730,7 @@ class AlexaRemote extends EventEmitter {
                         device.rename = this.renameDevice.bind(this, device);
                         device.setDoNotDisturb = this.setDoNotDisturb.bind(this, device);
                         device.delete = this.deleteDevice.bind(this, device);
+                        device.reboot = this.rebootDevice.bind(this, device);
                         device.getDevicePreferences = this.getDevicePreferences.bind(this, device);
                         device.setDevicePreferences = this.setDevicePreferences.bind(this, device);
                         device.getNotificationSounds = this.getNotificationSounds.bind(this, device);
@@ -845,6 +853,48 @@ class AlexaRemote extends EventEmitter {
      */
     initWsMqttConnection(): void {
         return this.initPushConnection();
+    }
+
+    /**
+     * Finds the device of a NotifyNowPlayingUpdated push message, which contains no device:
+     * the media reference of the PUSH_AUDIO_PLAYER_STATE message that is sent before ends with the media id
+     * (e.g. "EMP_ALEXA-<uuid>:spotify:track:<id>" and "spotify:track:<id>"). The device is remembered per playback
+     * session, so later updates of the session (e.g. pause) are assigned too.
+     *
+     * @param taskSessionId playback session of the message
+     * @param mediaId id of the played media
+     * @returns the device or null if it could not be determined
+     */
+    findNowPlayingDevice(
+        taskSessionId: string | undefined,
+        mediaId: string | undefined,
+    ): { deviceSerialNumber: string; deviceType: string } | null {
+        if (taskSessionId && this.nowPlayingSessions[taskSessionId]) {
+            return this.nowPlayingSessions[taskSessionId];
+        }
+        if (!mediaId) {
+            return null;
+        }
+        let found: { deviceSerialNumber: string; deviceType: string } | null = null;
+        let foundTs = 0;
+        for (const [serial, media] of Object.entries(this.lastAudioPlayerMedia)) {
+            if (
+                (media.mediaReferenceId === mediaId || media.mediaReferenceId.endsWith(`:${mediaId}`)) &&
+                media.ts > foundTs
+            ) {
+                found = { deviceSerialNumber: serial, deviceType: media.deviceType };
+                foundTs = media.ts;
+            }
+        }
+        if (found && taskSessionId) {
+            // keep only the newest sessions
+            const sessions = Object.keys(this.nowPlayingSessions);
+            if (sessions.length >= 50) {
+                delete this.nowPlayingSessions[sessions[0]];
+            }
+            this.nowPlayingSessions[taskSessionId] = found;
+        }
+        return found;
     }
 
     /**
@@ -1008,6 +1058,14 @@ class AlexaRemote extends EventEmitter {
                         'errorMessage': null
                     }
                     */
+                    // remember the media per device to find the device of NotifyNowPlayingUpdated (it has no device)
+                    if (payload.mediaReferenceId && payload.dopplerId?.deviceSerialNumber) {
+                        this.lastAudioPlayerMedia[payload.dopplerId.deviceSerialNumber] = {
+                            mediaReferenceId: payload.mediaReferenceId,
+                            deviceType: payload.dopplerId.deviceType,
+                            ts: Date.now(),
+                        };
+                    }
                     this.emit('ws-audio-player-state-change', {
                         destinationUserId: payload.destinationUserId,
                         deviceSerialNumber: payload.dopplerId.deviceSerialNumber,
@@ -1294,8 +1352,14 @@ class AlexaRemote extends EventEmitter {
                     }
                     */
                     const nowPlaying = payload?.update?.update?.nowPlayingData ?? null;
+                    const nowPlayingDevice = this.findNowPlayingDevice(
+                        payload?.update?.taskSessionId,
+                        nowPlaying?.mediaId,
+                    );
 
                     this.emit('ws-now-playing-updated', {
+                        deviceSerialNumber: nowPlayingDevice?.deviceSerialNumber ?? null,
+                        deviceType: nowPlayingDevice?.deviceType ?? null,
                         customerId: payload?.customerId ?? null,
                         taskSessionId: payload?.update?.taskSessionId ?? null,
                         cause: payload?.update?.update?.cause ?? null,
@@ -2276,7 +2340,11 @@ class AlexaRemote extends EventEmitter {
      * @param options text of the new item or an object with the text as `value`
      * @param callback called with (error, created items)
      */
-    addListItem(listId: string, options: ListItemOptions | string, callback?: CallbackWithErrorAndBody): void {
+    addListItem(
+        listId: string,
+        options: ListItemOptions | string,
+        callback?: CallbackWithErrorAndBody<ListItemV2[]>,
+    ): void {
         if (typeof options === 'string') {
             options = { value: options };
         }
@@ -3262,7 +3330,7 @@ class AlexaRemote extends EventEmitter {
      */
     private _getCustomerHistoryRecords(
         options: GetCustomerHistoryRecordsOptions,
-        callback?: CallbackWithErrorAndBody,
+        callback?: CallbackWithErrorAndBody<CustomerHistoryEntry[]>,
     ): void {
         let url =
             `https://www.${this._options.amazonPage}/alexa-privacy/apd/rvh/customer-history-records-v2` +
@@ -3405,8 +3473,8 @@ class AlexaRemote extends EventEmitter {
      * @param callback called with (error, result)
      */
     getCustomerHistoryRecords(
-        _options?: GetCustomerHistoryRecordsOptions | CallbackWithErrorAndBody,
-        callback?: CallbackWithErrorAndBody,
+        _options?: GetCustomerHistoryRecordsOptions | CallbackWithErrorAndBody<CustomerHistoryEntry[]>,
+        callback?: CallbackWithErrorAndBody<CustomerHistoryEntry[]>,
     ): void {
         let options: GetCustomerHistoryRecordsOptions;
         if (typeof _options === 'function') {
@@ -5209,6 +5277,30 @@ class AlexaRemote extends EventEmitter {
     }
 
     /**
+     * Restarts a device (like "Restart device" in the Alexa app).
+     * The request is sent to the website API with the cookie and additionally the access token (as Home Assistant does).
+     *
+     * @param serialOrName serial number, name, friendly name or device object of the Echo device
+     * @param callback called with (error, result)
+     */
+    rebootDevice(serialOrName: SerialOrName, callback?: CallbackWithErrorAndBody): void {
+        const dev = this.find(serialOrName);
+        if (!dev) {
+            return callback?.(new Error('Unknown Device or Serial number'), null);
+        }
+        this.updateApiBearerToken(err => {
+            if (err) {
+                return callback?.(err, null);
+            }
+            this.httpsGet(`/v1/alexa/device/reboot/${dev.deviceType}/${dev.serialNumber}`, callback, {
+                method: 'POST',
+                data: JSON.stringify({ deviceSerialNumber: dev.serialNumber, deviceType: dev.deviceType }),
+                headers: { authorization: `Bearer ${this.authApiBearerToken}` },
+            });
+        });
+    }
+
+    /**
      * Deletes (de-registers) a device from the account.
      *
      * @param serialOrName serial number, name, friendly name or device object of the Echo device
@@ -5703,6 +5795,11 @@ declare namespace AlexaRemote {
     export type HttpsGetFlags = Types.HttpsGetFlags;
     export type Endpoints = Types.Endpoints;
     // responses, push messages and events
+    export type VoiceHistoryRecordItem = Responses.VoiceHistoryRecordItem;
+    export type CustomerHistoryRecord = Responses.CustomerHistoryRecord;
+    export type CustomerHistoryRecordsResponse = Responses.CustomerHistoryRecordsResponse;
+    export type CustomerHistoryEntry = Responses.CustomerHistoryEntry;
+    export type DeviceActivityEvent = Responses.DeviceActivityEvent;
     export type MediaImage = Responses.MediaImage;
     export type NowPlayingData = Responses.NowPlayingData;
     export type NowPlayingUpdatedPush = Responses.NowPlayingUpdatedPush;

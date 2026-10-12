@@ -47,6 +47,8 @@ Thank you for that work.
 * (GermanBluefox) Fixed: HTTP/2 push messages that are split across several data chunks (or several messages in one chunk) are processed correctly now (#311); unparsable push messages are reported as `ws-unknown-message`
 * (GermanBluefox) Fixed: requests to the notifications API use a browser user agent, because Amazon answers requests with the app user agent with "400 ThrottlingException"
 * (GermanBluefox) Added event `ws-dnd-state-change` for "do not disturb" changes
+* (GermanBluefox) Added `rebootDevice()` (and `device.reboot()`) to restart a device
+* (GermanBluefox) The `ws-now-playing-updated` event contains the device now (`deviceSerialNumber`, `deviceType`), determined via the audio player state
 * (GermanBluefox) Fixed: `getLists()` / `getList()` deliver `totalActiveItemsCount` again (the V2 API delivers it in `aggregatedAttributes`)
 * (GermanBluefox) Added types for the responses of the Amazon APIs, the push messages and the events (`AlexaRemote.DevicesResponse`, `AlexaRemote.ListV2`, ...), derived from recorded responses
 * (GermanBluefox) The access token for the Alexa API and the push connection is renewed after 80 % of its lifetime; if Amazon refuses the token of the push connection (403), a new token is requested instead of reusing the cached one

@@ -247,6 +247,23 @@ describe('player and device commands', () => {
         assert.match(del.path, /\?version=4$/);
     });
 
+    it('reboots devices with cookie and access token', async () => {
+        const { err } = await call(cb => alexa.rebootDevice('S1', cb));
+        assert.ifError(err);
+        const req = fake.last(/\/v1\/alexa\/device\/reboot/)!;
+        assert.equal(req.host, 'alexa.amazon.de');
+        assert.equal(req.path, '/v1/alexa/device/reboot/T1/S1');
+        assert.equal(req.method, 'POST');
+        assert.deepEqual(JSON.parse(req.data), { deviceSerialNumber: 'S1', deviceType: 'T1' });
+        assert.equal(req.headers.authorization, 'Bearer ACCESS');
+        assert.equal(req.headers.csrf, 'CSRF123');
+        // also available at the device object
+        assert.equal(typeof alexa.serialNumbers.S1.reboot, 'function');
+
+        const { err: unknown } = await call(cb => alexa.rebootDevice('unknown', cb));
+        assert.equal(unknown.message, 'Unknown Device or Serial number');
+    });
+
     it('deletes conversations, also with the callback as second parameter', async () => {
         await call(cb => alexa.deleteConversation('CONV1', cb));
         const req = fake.last(/conversations\/CONV1/)!;

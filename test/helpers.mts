@@ -221,5 +221,5 @@ export const createAlexa = async (extra: Record<string, any> = {}): Promise<Alex
  * @param fn function that gets the callback
  */
 export const call = <T extends unknown = any>(
-    fn: (cb: (err?: Error | null, res?: T) => void) => void,
-): Promise<{ err?: any; res?: T }> => new Promise(resolve => fn((err, res) => resolve({ err, res })));
+    fn: (cb: (err?: Error | null, res?: T | null) => void) => void,
+): Promise<{ err?: any; res?: T | null }> => new Promise(resolve => fn((err, res) => resolve({ err, res })));
