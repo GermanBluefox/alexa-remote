@@ -555,7 +555,7 @@ export interface EqualizerStateChangePush {
 export interface AudioPlayerStatePush {
     destinationUserId: string;
     dopplerId: DopplerId;
-    /** e.g. PLAYING, FINISHED, INTERRUPTED */
+    /** e.g. PLAYING, INTERRUPTED, FINISHED */
     audioPlayerState: string;
     mediaReferenceId: string;
     quality: unknown;
@@ -571,6 +571,92 @@ export interface NotificationChangePush {
     notificationVersion: number;
     /** e.g. CREATE, UPDATE, DELETE */
     eventType: string;
+}
+
+/** Link to an image or logo */
+export interface MediaImage {
+    altText: string | null;
+    url: string;
+    contentType: string | null;
+}
+
+/** Data about the currently played media (NotifyNowPlayingUpdated) */
+export interface NowPlayingData {
+    /** e.g. com.amazon.alexa.media.access.shared.model.MusicNowPlayingData */
+    '@class': string;
+    /** State of the controls: ENABLED, DISABLED or HIDDEN */
+    transport: {
+        playPause: string;
+        next: string;
+        previous: string;
+        shuffle: string;
+        repeat: string;
+        seekForward: string;
+        seekBackward: string;
+        thumbsUp: string;
+        thumbsDown: string;
+    };
+    progress: {
+        visible: boolean;
+        /** Position in ms */
+        mediaProgress: number;
+        /** Length in ms */
+        mediaLength: number;
+        allowScrubbing: boolean;
+        showTiming: boolean;
+    };
+    /** e.g. PLAYING, PAUSED */
+    playerState: string;
+    queueId: string;
+    mediaId: string;
+    quality: { name: string; badge: MediaImage };
+    provider: { providerName: string; providerLogo: MediaImage };
+    mainArt: {
+        altText: string | null;
+        contentType: string;
+        tinyUrl: string;
+        smallUrl: string;
+        mediumUrl: string;
+        largeUrl: string;
+        fullUrl: string;
+    };
+    /** title = title, subText1 = artist, subText2 = album */
+    infoText: { title: string; subText1: string; subText2: string; multiLineMode: boolean };
+    /** value is a JSON string, e.g. '{"contentId":"spotify:playlist:...","externalItemId":"spotify:track:..."}' */
+    mediaReference: { namespace: string; name: string; value: string };
+    sources: unknown[];
+}
+
+/** Payload of NotifyNowPlayingUpdated */
+export interface NowPlayingUpdatedPush {
+    messageId: string;
+    /** NotifyNowPlayingUpdated */
+    name: string;
+    customerId: string;
+    fallbackAllowed: boolean;
+    update: {
+        /** e.g. SessionUpdate */
+        type: string;
+        taskSessionId: string;
+        update: {
+            type: string;
+            /** e.g. PLAYBACK_STARTED, PLAYBACK_STOPPED */
+            cause: string;
+            nowPlayingData: NowPlayingData;
+            playbackError: boolean;
+            errorMessage: string | null;
+        };
+    };
+}
+
+/** Payload of PUSH_LIST_ITEM_CHANGE */
+export interface ListItemChangePush {
+    destinationUserId: string;
+    listId: string;
+    listItemId: string;
+    version: number;
+    /** itemCreated, itemUpdated (also when checked) or itemDeleted */
+    eventName: string;
 }
 
 /** Payload of NotifyMediaSessionsUpdated */
@@ -639,5 +725,15 @@ export interface NowPlayingUpdatedEvent {
     cause: string | null;
     mediaId: string | null;
     playerState: string | null;
-    nowPlayingData: Record<string, any> | null;
+    nowPlayingData: NowPlayingData | null;
+}
+
+/** Data of the `ws-todo-change` event (a list item changed) */
+export interface TodoChangeEvent {
+    destinationUserId: string;
+    /** itemCreated, itemUpdated (also when checked) or itemDeleted */
+    eventType: string;
+    listId: string;
+    listItemId: string;
+    listItemVersion: number;
 }

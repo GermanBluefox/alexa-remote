@@ -5703,6 +5703,11 @@ declare namespace AlexaRemote {
     export type HttpsGetFlags = Types.HttpsGetFlags;
     export type Endpoints = Types.Endpoints;
     // responses, push messages and events
+    export type MediaImage = Responses.MediaImage;
+    export type NowPlayingData = Responses.NowPlayingData;
+    export type NowPlayingUpdatedPush = Responses.NowPlayingUpdatedPush;
+    export type ListItemChangePush = Responses.ListItemChangePush;
+    export type TodoChangeEvent = Responses.TodoChangeEvent;
     export type CustomerStatusResponse = Responses.CustomerStatusResponse;
     export type AuthTokenResponse = Responses.AuthTokenResponse;
     export type CommsAccount = Responses.CommsAccount;
