@@ -178,7 +178,13 @@ describe('player and device commands', () => {
         fake.on(/alexashoppinglists\/api\/v2\/lists\/fetch/, {
             body: {
                 listInfoList: [
-                    { listId: 'L1', listName: 'Shopping', totalActiveItemsCount: '{"count":2}', customerId: 'C1' },
+                    // the count is delivered in aggregatedAttributes as JSON string
+                    {
+                        listId: 'L1',
+                        listName: 'Shopping',
+                        aggregatedAttributes: { totalActiveItemsCount: '{"count":2,"hasMore":false}' },
+                        customerId: 'C1',
+                    },
                 ],
             },
         });

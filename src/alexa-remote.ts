@@ -7,11 +7,39 @@ import * as zlib from 'node:zlib';
 import * as fsPath from 'node:path';
 import { EventEmitter } from 'node:events';
 import extend from 'extend';
-//import AlexaWsMqtt from './alexa-wsmqtt';
+// import AlexaWsMqtt from './alexa-wsmqtt';
 import AlexaHttp2Push from './alexa-http2push';
 /* eslint-disable import/no-duplicates */
 // namespace import is used to re-export all types via 'declare namespace AlexaRemote' below
 import type * as Types from './types';
+import type * as Responses from './responses';
+import type {
+    AscendingAlarmState,
+    AuthTokenResponse,
+    AutomationRoutine,
+    BluetoothResponse,
+    CommsAccount,
+    CommsIdentity,
+    Contact,
+    DefaultNotificationSoundResponse,
+    DeviceNotificationState,
+    DevicePreferences,
+    DevicePreferencesResponse,
+    DeviceVolumesResponse,
+    DeviceWifiDetails,
+    DevicesResponse,
+    DoNotDisturbStatusResponse,
+    EqualizerEnabledResponse,
+    EqualizerRangeResponse,
+    EqualizerSettingsResponse,
+    ListItemV2,
+    ListV2,
+    MusicProvider,
+    NotificationSoundsResponse,
+    NotificationsResponse,
+    RoutineSkillCatalogResponse,
+    WakeWordsResponse,
+} from './responses';
 import type {
     AlexaCookie,
     AlexaRemoteOptions,
@@ -531,7 +559,7 @@ class AlexaRemote extends EventEmitter {
         this.getAccount((err, result) => {
             if (!err && result && Array.isArray(result)) {
                 result.forEach(account => {
-                    this.commsId ||= account.commsId;
+                    this.commsId ||= account.commsId || undefined;
                     // if (!this.directedId) this.directedId = account.directedId;
                 });
             }
@@ -576,7 +604,7 @@ class AlexaRemote extends EventEmitter {
             res.notifications.forEach((noti: any) => {
                 const device = this.find(noti.deviceSerialNumber);
                 if (!device) {
-                    //TODO: new stuff
+                    // TODO: new stuff
                     return;
                 }
                 if (
@@ -612,7 +640,7 @@ class AlexaRemote extends EventEmitter {
             wakeWords.wakeWords.forEach((o: any) => {
                 const device = this.find(o.deviceSerialNumber);
                 if (!device) {
-                    //TODO: new stuff
+                    // TODO: new stuff
                     return;
                 }
                 if (typeof o.wakeWord === 'string') {
@@ -687,7 +715,7 @@ class AlexaRemote extends EventEmitter {
                             this.names[name] = device;
                             this.names[name.toLowerCase()] = device;
                         }
-                        //device._orig = JSON.parse(JSON.stringify(device));
+                        // device._orig = JSON.parse(JSON.stringify(device));
                         device._name = name;
                         device.sendCommand = this.sendCommand.bind(this, device);
                         device.setTunein = this.setTunein.bind(this, device);
@@ -1503,7 +1531,7 @@ class AlexaRemote extends EventEmitter {
      *
      * @param callback called with (error, result)
      */
-    getAuthApiBearerToken(callback: CallbackWithErrorAndBody): void {
+    getAuthApiBearerToken(callback: CallbackWithErrorAndBody<AuthTokenResponse>): void {
         if (!this.alexaCookie) {
             // lazy load, as alexa-cookie2 is only needed for cookie handling
             // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -1558,7 +1586,9 @@ class AlexaRemote extends EventEmitter {
         }
         this.getAuthApiBearerToken((err, res) => {
             if (err || !res || !res.access_token || res.token_type !== 'bearer') {
-                this._options.logger?.(`Alexa-Remote: Error getting auth token: ${err ? err.message : res}`);
+                this._options.logger?.(
+                    `Alexa-Remote: Error getting auth token: ${err ? err.message : JSON.stringify(res)}`,
+                );
                 return callback?.(err);
             }
             this.authApiBearerToken = res.access_token;
@@ -1971,7 +2001,7 @@ class AlexaRemote extends EventEmitter {
      *
      * @param callback called with (error, result)
      */
-    getDevices(callback?: CallbackWithErrorAndBody): void {
+    getDevices(callback?: CallbackWithErrorAndBody<DevicesResponse>): void {
         this.httpsGet('/api/devices-v2/device?cached=true&_=%t', callback);
     }
 
@@ -2061,10 +2091,13 @@ class AlexaRemote extends EventEmitter {
      * @param list list as returned by the V2 API
      * @returns list in the old format
      */
-    private mapListV2(list: any): Record<string, any> {
+    private mapListV2(list: Partial<ListV2> & { totalActiveItemsCount?: string }): Record<string, any> {
         let count = null;
         try {
-            count = JSON.parse(list.totalActiveItemsCount).count;
+            // the requested aggregation is delivered as JSON string in aggregatedAttributes: '{"count":3,"hasMore":false}'
+            count = JSON.parse(
+                list.aggregatedAttributes?.totalActiveItemsCount ?? list.totalActiveItemsCount ?? '',
+            ).count;
         } catch {
             // Ignore
         }
@@ -2104,7 +2137,7 @@ class AlexaRemote extends EventEmitter {
      *
      * @param callback called with (error, lists)
      */
-    getListsV2(callback?: CallbackWithErrorAndBody): void {
+    getListsV2(callback?: CallbackWithErrorAndBody<ListV2[]>): void {
         const request = {
             method: 'POST',
             data: JSON.stringify({
@@ -2144,7 +2177,7 @@ class AlexaRemote extends EventEmitter {
      * @param callback called with (error, list)
      * @param limit maximum number of items to fetch (defaults to 100)
      */
-    getListV2(listId: string, callback?: CallbackWithErrorAndBody, limit?: number): void {
+    getListV2(listId: string, callback?: CallbackWithErrorAndBody<ListV2>, limit?: number): void {
         const request = {
             method: 'POST',
             data: JSON.stringify({
@@ -2208,8 +2241,8 @@ class AlexaRemote extends EventEmitter {
      */
     getListItemsV2(
         listId: string,
-        options?: ListItemOptions | CallbackWithErrorAndBody,
-        callback?: CallbackWithErrorAndBody,
+        options?: ListItemOptions | CallbackWithErrorAndBody<ListItemV2[]>,
+        callback?: CallbackWithErrorAndBody<ListItemV2[]>,
     ): void {
         if (typeof options === 'function') {
             callback = options;
@@ -2385,7 +2418,7 @@ class AlexaRemote extends EventEmitter {
      *
      * @param callback called with (error, result)
      */
-    getWakeWords(callback?: CallbackWithErrorAndBody): void {
+    getWakeWords(callback?: CallbackWithErrorAndBody<WakeWordsResponse>): void {
         this.httpsGet(`/api/wake-word?_=%t`, callback);
     }
 
@@ -2404,7 +2437,10 @@ class AlexaRemote extends EventEmitter {
      * @param cached true to allow cached data (or the callback, defaults to true)
      * @param callback called with (error, result)
      */
-    getNotifications(cached?: boolean | CallbackWithErrorAndBody, callback?: CallbackWithErrorAndBody): void {
+    getNotifications(
+        cached?: boolean | CallbackWithErrorAndBody<NotificationsResponse>,
+        callback?: CallbackWithErrorAndBody<NotificationsResponse>,
+    ): void {
         if (typeof cached === 'function') {
             callback = cached;
             cached = true;
@@ -2424,8 +2460,8 @@ class AlexaRemote extends EventEmitter {
      */
     getNotificationSounds(
         serialOrName: SerialOrName,
-        alertType?: string | CallbackWithErrorAndBody,
-        callback?: CallbackWithErrorAndBody,
+        alertType?: string | CallbackWithErrorAndBody<NotificationSoundsResponse>,
+        callback?: CallbackWithErrorAndBody<NotificationSoundsResponse>,
     ): void {
         if (typeof alertType === 'function') {
             callback = alertType;
@@ -2449,7 +2485,10 @@ class AlexaRemote extends EventEmitter {
      * @param serialOrName serial number, name, friendly name or device object of the Echo device
      * @param callback called with (error, result)
      */
-    getDeviceNotificationState(serialOrName: SerialOrName, callback?: CallbackWithErrorAndBody): void {
+    getDeviceNotificationState(
+        serialOrName: SerialOrName,
+        callback?: CallbackWithErrorAndBody<DeviceNotificationState>,
+    ): void {
         const device = this.find(serialOrName);
         if (!device) {
             return callback?.(new Error('Unknown Device or Serial number'), null);
@@ -2530,7 +2569,7 @@ class AlexaRemote extends EventEmitter {
     getDeviceNotificationDefaultSound(
         serialOrName: SerialOrName,
         notificationType: string,
-        callback?: CallbackWithErrorAndBody,
+        callback?: CallbackWithErrorAndBody<DefaultNotificationSoundResponse>,
     ): void {
         const device = this.find(serialOrName);
         if (!device) {
@@ -2549,6 +2588,8 @@ class AlexaRemote extends EventEmitter {
      * @param serialOrName device to return the state for (or the callback to get the states of all devices)
      * @param callback called with (error, result)
      */
+    getAscendingAlarmState(callback?: CallbackWithErrorAndBody<AscendingAlarmState[]>): void;
+    getAscendingAlarmState(serialOrName: SerialOrName, callback?: CallbackWithErrorAndBody<AscendingAlarmState>): void;
     getAscendingAlarmState(
         serialOrName?: SerialOrName | CallbackWithErrorAndBody,
         callback?: CallbackWithErrorAndBody,
@@ -3097,7 +3138,7 @@ class AlexaRemote extends EventEmitter {
      *
      * @param callback called with (error, result)
      */
-    getDoNotDisturb(callback?: CallbackWithErrorAndBody): void {
+    getDoNotDisturb(callback?: CallbackWithErrorAndBody<DoNotDisturbStatusResponse>): void {
         return this.getDeviceStatusList(callback);
     }
     /**
@@ -3105,7 +3146,7 @@ class AlexaRemote extends EventEmitter {
      *
      * @param callback called with (error, result)
      */
-    getDeviceStatusList(callback?: CallbackWithErrorAndBody): void {
+    getDeviceStatusList(callback?: CallbackWithErrorAndBody<DoNotDisturbStatusResponse>): void {
         this.httpsGet(`/api/dnd/device-status-list?_=%t`, callback);
     }
 
@@ -3115,7 +3156,10 @@ class AlexaRemote extends EventEmitter {
      * @param cached true to allow cached data (or the callback, defaults to true)
      * @param callback called with (error, result)
      */
-    getBluetooth(cached?: boolean | CallbackWithErrorAndBody, callback?: CallbackWithErrorAndBody): void {
+    getBluetooth(
+        cached?: boolean | CallbackWithErrorAndBody<BluetoothResponse>,
+        callback?: CallbackWithErrorAndBody<BluetoothResponse>,
+    ): void {
         if (typeof cached === 'function') {
             callback = cached;
             cached = true;
@@ -3254,9 +3298,9 @@ class AlexaRemote extends EventEmitter {
                         const recordKey = res.recordKey.split('#'); // A3NSX4MMJVG96V#1612297041815#A1RABVCI4QCIKC#G0911W0793360TLG
 
                         o.deviceType = recordKey[2] || null;
-                        //o.deviceAccountId = res.sourceDeviceIds[i].deviceAccountId || null;
+                        // o.deviceAccountId = res.sourceDeviceIds[i].deviceAccountId || null;
                         o.creationTimestamp = res.timestamp || null;
-                        //o.activityStatus = res.activityStatus || null; // DISCARDED_NON_DEVICE_DIRECTED_INTENT, SUCCESS, FAIL, SYSTEM_ABANDONED
+                        // o.activityStatus = res.activityStatus || null; // DISCARDED_NON_DEVICE_DIRECTED_INTENT, SUCCESS, FAIL, SYSTEM_ABANDONED
 
                         o.deviceSerialNumber = recordKey[3];
                         if (!this.serialNumbers[o.deviceSerialNumber]) {
@@ -3410,7 +3454,10 @@ class AlexaRemote extends EventEmitter {
      * @param includeActors true to include the actors (or the callback)
      * @param callback called with (error, result)
      */
-    getAccount(includeActors?: boolean | CallbackWithErrorAndBody, callback?: CallbackWithErrorAndBody): void {
+    getAccount(
+        includeActors?: boolean | CallbackWithErrorAndBody<CommsAccount[]>,
+        callback?: CallbackWithErrorAndBody<CommsAccount[]>,
+    ): void {
         if (typeof includeActors === 'function') {
             callback = includeActors;
             includeActors = false;
@@ -3427,7 +3474,10 @@ class AlexaRemote extends EventEmitter {
      * @param options query options (or the callback)
      * @param callback called with (error, result)
      */
-    getContacts(options?: GetContactsOptions | CallbackWithErrorAndBody, callback?: CallbackWithErrorAndBody): void {
+    getContacts(
+        options?: GetContactsOptions | CallbackWithErrorAndBody<Contact[]>,
+        callback?: CallbackWithErrorAndBody<Contact[]>,
+    ): void {
         if (typeof options === 'function') {
             callback = options;
             options = undefined;
@@ -3949,7 +3999,7 @@ class AlexaRemote extends EventEmitter {
                     durationString += `${minutes}M`;
                     durationString += `${seconds}S`;
                     seqNode.operationPayload.duration = durationString;
-                    //seqNode.operationPayload.timeZoneId = 'Europe/Berlin';
+                    // seqNode.operationPayload.timeZoneId = 'Europe/Berlin';
                 } else if (valueType === 'string') {
                     if (!/^\d{2}:\d{2}$/.test(value)) {
                         throw new Error('Invalid timepoint value provided');
@@ -4301,7 +4351,10 @@ class AlexaRemote extends EventEmitter {
      * @param limit maximum number of routines (or the callback, defaults to 2000)
      * @param callback called with (error, result)
      */
-    getAutomationRoutines(limit?: number | CallbackWithErrorAndBody, callback?: CallbackWithErrorAndBody): void {
+    getAutomationRoutines(
+        limit?: number | CallbackWithErrorAndBody<AutomationRoutine[]>,
+        callback?: CallbackWithErrorAndBody<AutomationRoutine[]>,
+    ): void {
         if (typeof limit === 'function') {
             callback = limit;
             limit = 0;
@@ -4335,9 +4388,9 @@ class AlexaRemote extends EventEmitter {
      * @param callback response callback
      */
     getRoutineSkillCatalog(
-        catalogId?: string | CallbackWithErrorAndBody,
-        limit?: number | CallbackWithErrorAndBody,
-        callback?: CallbackWithErrorAndBody,
+        catalogId?: string | CallbackWithErrorAndBody<RoutineSkillCatalogResponse>,
+        limit?: number | CallbackWithErrorAndBody<RoutineSkillCatalogResponse>,
+        callback?: CallbackWithErrorAndBody<RoutineSkillCatalogResponse>,
     ): void {
         if (typeof limit === 'function') {
             callback = limit;
@@ -4372,7 +4425,7 @@ class AlexaRemote extends EventEmitter {
      *
      * @param callback called with (error, result)
      */
-    getMusicProviders(callback?: CallbackWithErrorAndBody): void {
+    getMusicProviders(callback?: CallbackWithErrorAndBody<MusicProvider[]>): void {
         this.httpsGet('/api/behaviors/entities?skillId=amzn1.ask.1p.music', callback, {
             headers: {
                 'Routines-Version': '3.0.264101',
@@ -4649,7 +4702,7 @@ class AlexaRemote extends EventEmitter {
      *
      * @param callback called with (error, result)
      */
-    getHomeGroup(callback?: CallbackWithErrorAndBody): void {
+    getHomeGroup(callback?: CallbackWithErrorAndBody<CommsIdentity>): void {
         this.httpsGet(
             `https://alexa-comms-mobile-service.${this._options.amazonPage}/users/${this.commsId}/identities?includeUserName=true`,
             callback,
@@ -4662,6 +4715,11 @@ class AlexaRemote extends EventEmitter {
      * @param serialOrName device to return the preferences for (or the callback to get the preferences of all devices)
      * @param callback called with (error, result)
      */
+    getDevicePreferences(callback?: CallbackWithErrorAndBody<DevicePreferencesResponse>): void;
+    getDevicePreferences(
+        serialOrName: SerialOrName | null | undefined,
+        callback?: CallbackWithErrorAndBody<DevicePreferences | DevicePreferencesResponse>,
+    ): void;
     getDevicePreferences(
         serialOrName?: SerialOrName | CallbackWithErrorAndBody | null,
         callback?: CallbackWithErrorAndBody,
@@ -4721,7 +4779,7 @@ class AlexaRemote extends EventEmitter {
      * @param serialOrName serial number, name, friendly name or device object of the Echo device
      * @param callback called with (error, result)
      */
-    getDeviceWifiDetails(serialOrName: SerialOrName, callback?: CallbackWithErrorAndBody): void {
+    getDeviceWifiDetails(serialOrName: SerialOrName, callback?: CallbackWithErrorAndBody<DeviceWifiDetails>): void {
         const dev = this.find(serialOrName);
         if (!dev) {
             return callback?.(new Error('Unknown Device or Serial number'), null);
@@ -4737,7 +4795,7 @@ class AlexaRemote extends EventEmitter {
      *
      * @param callback called with (error, result)
      */
-    getAllDeviceVolumes(callback?: CallbackWithErrorAndBody): void {
+    getAllDeviceVolumes(callback?: CallbackWithErrorAndBody<DeviceVolumesResponse>): void {
         this.httpsGet('/api/devices/deviceType/dsn/audio/v1/allDeviceVolumes', callback);
     }
 
@@ -4904,7 +4962,7 @@ class AlexaRemote extends EventEmitter {
             serialNumber: dev.serialNumber,
             deviceAccountId: dev.deviceAccountId,
             deviceType: dev.deviceType,
-            //deviceOwnerCustomerId: oo.deviceOwnerCustomerId
+            // deviceOwnerCustomerId: oo.deviceOwnerCustomerId
         };
         this.httpsGet(`/api/devices-v2/device/${dev.serialNumber}`, callback, {
             method: 'PUT',
@@ -4921,7 +4979,7 @@ class AlexaRemote extends EventEmitter {
     deleteSmarthomeDevice(smarthomeDevice: string, callback?: CallbackWithErrorAndBody): void {
         const flags = {
             method: 'DELETE',
-            //data: JSON.stringify (o),
+            // data: JSON.stringify (o),
         };
         this.httpsGet(`/api/phoenix/appliance/${smarthomeDevice}`, callback, flags);
     }
@@ -4957,7 +5015,7 @@ class AlexaRemote extends EventEmitter {
     deleteSmarthomeGroup(smarthomeGroup: string, callback?: CallbackWithErrorAndBody): void {
         const flags = {
             method: 'DELETE',
-            //data: JSON.stringify (o),
+            // data: JSON.stringify (o),
         };
         this.httpsGet(`/api/phoenix/group/${smarthomeGroup}`, callback, flags);
     }
@@ -4970,7 +5028,7 @@ class AlexaRemote extends EventEmitter {
     deleteAllSmarthomeDevices(callback?: CallbackWithErrorAndBody): void {
         const flags = {
             method: 'DELETE',
-            //data: JSON.stringify (o),
+            // data: JSON.stringify (o),
         };
         this.httpsGet(`/api/phoenix`, callback, flags);
     }
@@ -4983,7 +5041,7 @@ class AlexaRemote extends EventEmitter {
     discoverSmarthomeDevice(callback?: CallbackWithErrorAndBody): void {
         const flags = {
             method: 'POST',
-            //data: JSON.stringify (o),
+            // data: JSON.stringify (o),
         };
         this.httpsGet('/api/phoenix/discovery', callback, flags);
     }
@@ -5411,7 +5469,10 @@ class AlexaRemote extends EventEmitter {
      * @param serialOrName serial number, name, friendly name or device object of the Echo device
      * @param callback called with (error, result)
      */
-    getEqualizerEnabled(serialOrName: SerialOrName, callback?: CallbackWithErrorAndBody): void {
+    getEqualizerEnabled(
+        serialOrName: SerialOrName,
+        callback?: CallbackWithErrorAndBody<EqualizerEnabledResponse>,
+    ): void {
         const dev = this.find(serialOrName);
         if (!dev) {
             return callback?.(new Error('Unknown Device or Serial number'), null);
@@ -5432,7 +5493,7 @@ class AlexaRemote extends EventEmitter {
      * @param serialOrName serial number, name, friendly name or device object of the Echo device
      * @param callback called with (error, result)
      */
-    getEqualizerRange(serialOrName: SerialOrName, callback?: CallbackWithErrorAndBody): void {
+    getEqualizerRange(serialOrName: SerialOrName, callback?: CallbackWithErrorAndBody<EqualizerRangeResponse>): void {
         const dev = this.find(serialOrName);
         if (!dev) {
             return callback?.(new Error('Unknown Device or Serial number'), null);
@@ -5454,7 +5515,10 @@ class AlexaRemote extends EventEmitter {
      * @param serialOrName serial number, name, friendly name or device object of the Echo device
      * @param callback called with (error, result)
      */
-    getEqualizerSettings(serialOrName: SerialOrName, callback?: CallbackWithErrorAndBody): void {
+    getEqualizerSettings(
+        serialOrName: SerialOrName,
+        callback?: CallbackWithErrorAndBody<EqualizerSettingsResponse>,
+    ): void {
         const dev = this.find(serialOrName);
         if (!dev) {
             return callback?.(new Error('Unknown Device or Serial number'), null);
@@ -5638,6 +5702,57 @@ declare namespace AlexaRemote {
     export type SequenceCommandObject = Types.SequenceCommandObject;
     export type HttpsGetFlags = Types.HttpsGetFlags;
     export type Endpoints = Types.Endpoints;
+    // responses, push messages and events
+    export type CustomerStatusResponse = Responses.CustomerStatusResponse;
+    export type AuthTokenResponse = Responses.AuthTokenResponse;
+    export type CommsAccount = Responses.CommsAccount;
+    export type CommsName = Responses.CommsName;
+    export type CommsIdentity = Responses.CommsIdentity;
+    export type ContactNumber = Responses.ContactNumber;
+    export type Contact = Responses.Contact;
+    export type DeviceInfo = Responses.DeviceInfo;
+    export type DevicesResponse = Responses.DevicesResponse;
+    export type DeviceAddress = Responses.DeviceAddress;
+    export type DevicePreferences = Responses.DevicePreferences;
+    export type DevicePreferencesResponse = Responses.DevicePreferencesResponse;
+    export type WakeWord = Responses.WakeWord;
+    export type WakeWordsResponse = Responses.WakeWordsResponse;
+    export type BluetoothPairedDevice = Responses.BluetoothPairedDevice;
+    export type BluetoothState = Responses.BluetoothState;
+    export type BluetoothResponse = Responses.BluetoothResponse;
+    export type DeviceVolume = Responses.DeviceVolume;
+    export type DeviceVolumesResponse = Responses.DeviceVolumesResponse;
+    export type DoNotDisturbStatus = Responses.DoNotDisturbStatus;
+    export type DoNotDisturbStatusResponse = Responses.DoNotDisturbStatusResponse;
+    export type DeviceWifiDetails = Responses.DeviceWifiDetails;
+    export type EqualizerEnabledResponse = Responses.EqualizerEnabledResponse;
+    export type EqualizerRangeResponse = Responses.EqualizerRangeResponse;
+    export type EqualizerSettingsResponse = Responses.EqualizerSettingsResponse;
+    export type NotificationsResponse = Responses.NotificationsResponse;
+    export type NotificationSoundsResponse = Responses.NotificationSoundsResponse;
+    export type DefaultNotificationSoundResponse = Responses.DefaultNotificationSoundResponse;
+    export type DeviceNotificationState = Responses.DeviceNotificationState;
+    export type AscendingAlarmState = Responses.AscendingAlarmState;
+    export type AscendingAlarmResponse = Responses.AscendingAlarmResponse;
+    export type MusicProvider = Responses.MusicProvider;
+    export type AutomationTrigger = Responses.AutomationTrigger;
+    export type AutomationRoutine = Responses.AutomationRoutine;
+    export type RoutineCatalogItem = Responses.RoutineCatalogItem;
+    export type RoutineSkillCatalogResponse = Responses.RoutineSkillCatalogResponse;
+    export type ListV2 = Responses.ListV2;
+    export type ListItemV2 = Responses.ListItemV2;
+    export type DopplerId = Responses.DopplerId;
+    export type VolumeChangePush = Responses.VolumeChangePush;
+    export type EqualizerStateChangePush = Responses.EqualizerStateChangePush;
+    export type AudioPlayerStatePush = Responses.AudioPlayerStatePush;
+    export type NotificationChangePush = Responses.NotificationChangePush;
+    export type MediaSessionsUpdatedPush = Responses.MediaSessionsUpdatedPush;
+    export type VolumeChangeEvent = Responses.VolumeChangeEvent;
+    export type EqualizerStateChangeEvent = Responses.EqualizerStateChangeEvent;
+    export type AudioPlayerStateChangeEvent = Responses.AudioPlayerStateChangeEvent;
+    export type NotificationChangeEvent = Responses.NotificationChangeEvent;
+    export type DndStateChangeEvent = Responses.DndStateChangeEvent;
+    export type NowPlayingUpdatedEvent = Responses.NowPlayingUpdatedEvent;
 }
 
 export = AlexaRemote;

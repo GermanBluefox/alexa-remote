@@ -38,9 +38,6 @@ See [example folder](./example)
 Partly based on [Amazon Alexa Remote Control](http://blog.loetzimmer.de/2017/10/amazon-alexa-hort-auf-die-shell-echo.html) (PLAIN shell) and [alexa-remote-control](https://github.com/thorsten-gehrig/alexa-remote-control) and [OpenHab-Addon](https://github.com/openhab/openhab2-addons/blob/f54c9b85016758ff6d271b62d255bbe41a027928/addons/binding/org.openhab.binding.amazonechocontrol)
 Thank you for that work.
 
-## Known issues/Todos
-* docu docu docu (sorry ... will come)
-
 ## Changelog:
 ### __WORK IN PROGRESS__
 * (GermanBluefox) Migrated the code to TypeScript; the package now ships the compiled code and type definitions from `build/`
@@ -50,6 +47,8 @@ Thank you for that work.
 * (GermanBluefox) Fixed: HTTP/2 push messages that are split across several data chunks (or several messages in one chunk) are processed correctly now (#311); unparsable push messages are reported as `ws-unknown-message`
 * (GermanBluefox) Fixed: requests to the notifications API use a browser user agent, because Amazon answers requests with the app user agent with "400 ThrottlingException"
 * (GermanBluefox) Added event `ws-dnd-state-change` for "do not disturb" changes
+* (GermanBluefox) Fixed: `getLists()` / `getList()` deliver `totalActiveItemsCount` again (the V2 API delivers it in `aggregatedAttributes`)
+* (GermanBluefox) Added types for the responses of the Amazon APIs, the push messages and the events (`AlexaRemote.DevicesResponse`, `AlexaRemote.ListV2`, ...), derived from recorded responses
 * (GermanBluefox) The access token for the Alexa API and the push connection is renewed after 80 % of its lifetime; if Amazon refuses the token of the push connection (403), a new token is requested instead of reusing the cached one
 * (GermanBluefox) `getAuthenticationDetails()` is available again for compatibility, but always returns null (Amazon removed the API)
 * (GermanBluefox) Fixed edge cases: `sendMultiSequenceCommand` and `deleteConversation` with callback in an earlier parameter, `setReminder` with an unknown device, `httpsGetAuthApi` without endpoints
