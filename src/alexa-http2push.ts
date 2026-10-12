@@ -2,7 +2,11 @@ import * as http2 from 'node:http2';
 import { EventEmitter } from 'node:events';
 import type { AlexaRemoteOptions } from './types';
 
-export type UpdateAccessTokenFunction = (callback: (token: string | null) => void) => void;
+/**
+ * Delivers an access token for the push connection.
+ * With `force` a new token must be requested, because Amazon refused the current one.
+ */
+export type UpdateAccessTokenFunction = (callback: (token: string | null) => void, force?: boolean) => void;
 
 /** Incomplete messages bigger than this are discarded (protection against endless buffering) */
 const MAX_MESSAGE_SIZE = 1024 * 1024;
@@ -254,12 +258,13 @@ export default class AlexaHttp2Push extends EventEmitter {
                         (headers: http2.IncomingHttpHeaders & http2.IncomingHttpStatusHeader) => {
                             if (headers[':status'] === 403) {
                                 this._options.logger?.('Alexa-Remote HTTP2-PUSH: Error 403 .... refresh token');
+                                // The token was refused: request a new one, even if it is not yet expired
                                 this.update_access_token(token => {
                                     if (token) {
                                         this.access_token = token;
                                     }
                                     onHttp2Close(headers[':status'], undefined, this.errorRetryCounter < 3);
-                                });
+                                }, true);
                             } else if (headers[':status'] !== 200) {
                                 onHttp2Close(headers[':status']);
                             }

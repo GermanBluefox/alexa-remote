@@ -213,6 +213,29 @@ describe('Alexa API requests (access token)', () => {
         assert.equal(fake.find(/\/auth\/token/).length, tokenCalls);
     });
 
+    it('renews the access token after 80 % of its lifetime', async () => {
+        // the fake token is valid for one hour
+        const lifetime = alexa.authApiBearerExpiry! - Date.now();
+        const renewIn = alexa.authApiBearerRenewAt! - Date.now();
+        assert.ok(Math.abs(renewIn - lifetime * 0.8) < 2000, `${renewIn} vs ${lifetime}`);
+
+        const tokenCalls = fake.find(/\/auth\/token/).length;
+        // still valid, but 80 % of the lifetime have passed
+        alexa.authApiBearerRenewAt = Date.now() - 1;
+        assert.equal(alexa.isApiBearerTokenValid(), false);
+        await call(cb => alexa.httpsGetAuthApi('/v1/renew', cb));
+        assert.equal(fake.find(/\/auth\/token/).length, tokenCalls + 1);
+        assert.equal(alexa.isApiBearerTokenValid(), true);
+    });
+
+    it('requests a new access token when forced', async () => {
+        const tokenCalls = fake.find(/\/auth\/token/).length;
+        await new Promise(resolve => alexa.updateApiBearerToken(resolve));
+        assert.equal(fake.find(/\/auth\/token/).length, tokenCalls);
+        await new Promise(resolve => alexa.updateApiBearerToken(resolve, true));
+        assert.equal(fake.find(/\/auth\/token/).length, tokenCalls + 1);
+    });
+
     it('returns an error if no endpoints are known', async () => {
         const endpoints = alexa.endpoints;
         alexa.endpoints = null;

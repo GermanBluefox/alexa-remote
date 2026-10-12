@@ -246,6 +246,8 @@ class AlexaRemote extends EventEmitter {
     authApiBearerToken: string | null;
     /** Expiry timestamp of the access token */
     authApiBearerExpiry: number | null;
+    /** Timestamp after which the access token is renewed (80 % of its lifetime) */
+    authApiBearerRenewAt: number | null;
     /** CSRF token for the voice history API */
     activityCsrfToken: string | null;
     /** Expiry timestamp of the voice history CSRF token */
@@ -300,6 +302,7 @@ class AlexaRemote extends EventEmitter {
 
         this.authApiBearerToken = null;
         this.authApiBearerExpiry = null;
+        this.authApiBearerRenewAt = null;
 
         this.activityCsrfToken = null;
         this.activityCsrfTokenExpiry = null;
@@ -880,9 +883,10 @@ class AlexaRemote extends EventEmitter {
             });
             return;
         }
-        // The push connection requests a (new) access token via this function on (re)connect
-        this.alexahttp2Push = new AlexaHttp2Push(this._options, callback => {
-            this._options.logger?.('Alexa-Remote: Update access token ...');
+        // The push connection requests a (new) access token via this function on (re)connect,
+        // with force = true if Amazon refused the current token
+        this.alexahttp2Push = new AlexaHttp2Push(this._options, (callback, force) => {
+            this._options.logger?.(`Alexa-Remote: Update access token${force ? ' (forced)' : ''} ...`);
             this.updateApiBearerToken(err => {
                 if (err) {
                     this._options.logger?.(
@@ -892,7 +896,7 @@ class AlexaRemote extends EventEmitter {
                 } else {
                     callback(this.authApiBearerToken);
                 }
-            });
+            }, force);
         });
         if (!this.alexahttp2Push) {
             return;
@@ -1530,13 +1534,26 @@ class AlexaRemote extends EventEmitter {
     }
 
     /**
-     * Makes sure that a valid access token for the Alexa API is available; requests a new one if it is missing or expired.
+     * Returns whether the access token for the Alexa API can still be used.
+     * The token is renewed when 80 % of its lifetime have passed, so it never expires while it is in use
+     * (e.g. a push connection that is opened shortly before the expiry would be refused by Amazon).
+     *
+     * @returns true if the token exists and does not need to be renewed yet
+     */
+    isApiBearerTokenValid(): boolean {
+        const renewAt = this.authApiBearerRenewAt ?? this.authApiBearerExpiry ?? 0;
+        return !!this.authApiBearerToken && Date.now() < Math.min(renewAt, this.authApiBearerExpiry ?? 0);
+    }
+
+    /**
+     * Makes sure that a valid access token for the Alexa API is available; requests a new one if it is missing,
+     * expired or 80 % of its lifetime have passed.
      *
      * @param callback called with an error if no token could be retrieved
+     * @param force true to request a new token even if the current one is still valid (e.g. after Amazon refused it)
      */
-    updateApiBearerToken(callback?: CallbackWithError): void {
-        // Token still valid
-        if (this.authApiBearerToken && Date.now() < (this.authApiBearerExpiry || 0)) {
+    updateApiBearerToken(callback?: CallbackWithError, force?: boolean): void {
+        if (!force && this.isApiBearerTokenValid()) {
             return callback?.(null);
         }
         this.getAuthApiBearerToken((err, res) => {
@@ -1546,6 +1563,7 @@ class AlexaRemote extends EventEmitter {
             }
             this.authApiBearerToken = res.access_token;
             this.authApiBearerExpiry = Date.now() + res.expires_in * 1000;
+            this.authApiBearerRenewAt = Date.now() + res.expires_in * 800;
             callback?.(err);
         });
     }
@@ -1569,7 +1587,7 @@ class AlexaRemote extends EventEmitter {
         flags.headers.authorization = this.authApiBearerToken;
         flags.headers.authority = flags.host;
         flags.headers['user-agent'] = `${officialUserAgent} ${this._options.apiUserAgentPostfix}`.trim();
-        if (!this.authApiBearerToken || Date.now() >= (this.authApiBearerExpiry || 0)) {
+        if (!this.isApiBearerTokenValid()) {
             this.updateApiBearerToken(err => {
                 if (err) {
                     return callback?.(err);

@@ -50,6 +50,7 @@ Thank you for that work.
 * (GermanBluefox) Fixed: HTTP/2 push messages that are split across several data chunks (or several messages in one chunk) are processed correctly now (#311); unparsable push messages are reported as `ws-unknown-message`
 * (GermanBluefox) Fixed: requests to the notifications API use a browser user agent, because Amazon answers requests with the app user agent with "400 ThrottlingException"
 * (GermanBluefox) Added event `ws-dnd-state-change` for "do not disturb" changes
+* (GermanBluefox) The access token for the Alexa API and the push connection is renewed after 80 % of its lifetime; if Amazon refuses the token of the push connection (403), a new token is requested instead of reusing the cached one
 * (GermanBluefox) `getAuthenticationDetails()` is available again for compatibility, but always returns null (Amazon removed the API)
 * (GermanBluefox) Fixed edge cases: `sendMultiSequenceCommand` and `deleteConversation` with callback in an earlier parameter, `setReminder` with an unknown device, `httpsGetAuthApi` without endpoints
 

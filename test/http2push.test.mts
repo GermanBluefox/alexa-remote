@@ -217,6 +217,29 @@ describe('AlexaHttp2Push', () => {
         assert.equal(find('{"a":\r\n--b'), 5);
     });
 
+    it('forces a new access token if Amazon refuses the token with 403', async () => {
+        const requests: (boolean | undefined)[] = [];
+        let token = 'OLD';
+        push = new AlexaHttp2Push({}, (cb, force) => {
+            requests.push(force);
+            if (force) {
+                token = 'NEW';
+            }
+            cb(token);
+        });
+        push.connect();
+        await tick();
+        assert.deepEqual(requests, [undefined]);
+        assert.equal(session.headers!.authorization, 'Bearer OLD');
+
+        session.stream.emit('response', { ':status': 403 });
+        assert.deepEqual(requests, [undefined, true]);
+
+        // the immediate reconnect uses the new token
+        await new Promise(resolve => setTimeout(resolve, 1100));
+        assert.equal(session.headers!.authorization, 'Bearer NEW');
+    });
+
     it('emits disconnect with retry information when the connection is closed', async () => {
         await connect();
         let event: any[] | undefined;
